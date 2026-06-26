@@ -1,0 +1,3 @@
+John Doe | Python Engineer
+Skills: Python, SQL, Spark, data pipelines
+Experience: Built ETL pipelines using Python and SQL at Company X for 3 years.

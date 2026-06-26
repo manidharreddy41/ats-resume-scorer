@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATS Resume Scorer</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3348;
+    --accent: #6366f1;
+    --accent2: #8b5cf6;
+    --green: #10b981;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; }
+
+  /* ── Layout ── */
+  .app { max-width: 1100px; margin: 0 auto; padding: 32px 20px; }
+  .header { text-align: center; margin-bottom: 40px; }
+  .header h1 { font-size: 2rem; font-weight: 700; background: linear-gradient(135deg, #6366f1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .header p { color: var(--muted); margin-top: 8px; font-size: 0.95rem; }
+  .badge { display: inline-block; background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; margin-top: 8px; }
+
+  /* ── Cards ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 20px; }
+  .card-title { font-size: 0.85rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px; }
+
+  /* ── Grid ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* ── Upload zone ── */
+  .upload-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(99,102,241,0.05); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-icon { font-size: 2rem; margin-bottom: 10px; }
+  .upload-text { color: var(--muted); font-size: 0.9rem; }
+  .upload-text span { color: var(--accent); font-weight: 600; }
+  .upload-file-name { margin-top: 12px; font-size: 0.85rem; color: var(--green); font-weight: 500; display: none; }
+
+  /* ── JD input ── */
+  textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 12px; font-size: 0.9rem; resize: vertical; min-height: 160px; transition: border 0.2s; font-family: inherit; }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  input[type=text], input[type=url] { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 10px 14px; font-size: 0.9rem; transition: border 0.2s; font-family: inherit; }
+  input:focus { outline: none; border-color: var(--accent); }
+  .input-or { text-align: center; color: var(--muted); font-size: 0.8rem; margin: 10px 0; }
+
+  /* ── Button ── */
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 28px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 0.95rem; transition: all 0.15s; font-family: inherit; }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-green { background: var(--green); color: white; }
+  .btn-green:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-center { display: flex; justify-content: center; margin: 8px 0; }
+
+  /* ── Score gauge ── */
+  .score-section { display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
+  .score-gauge { position: relative; width: 140px; height: 140px; flex-shrink: 0; }
+  .score-gauge svg { transform: rotate(-90deg); }
+  .score-gauge .track { fill: none; stroke: var(--surface2); stroke-width: 10; }
+  .score-gauge .fill { fill: none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1s ease, stroke 0.5s; }
+  .score-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .score-num { font-size: 2.2rem; font-weight: 800; line-height: 1; }
+  .score-pct { font-size: 0.8rem; color: var(--muted); }
+  .score-meta { flex: 1; }
+  .score-grade { font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; }
+  .score-summary { color: var(--muted); font-size: 0.88rem; line-height: 1.6; }
+  .breakdown-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .breakdown-item { background: var(--surface2); border-radius: 8px; padding: 10px 14px; }
+  .breakdown-label { font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
+  .breakdown-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .breakdown-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
+  .breakdown-val { font-size: 0.85rem; font-weight: 600; margin-top: 4px; }
+
+  /* ── Keywords ── */
+  .kw-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .kw-pill { padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 500; }
+  .kw-matched { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.25); }
+  .kw-missing { background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+  .kw-required { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.35); }
+  .kw-preferred { background: rgba(245,158,11,0.1); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
+
+  /* ── Suggestions ── */
+  .suggestion-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 12px; cursor: pointer; transition: all 0.15s; position: relative; }
+  .suggestion-item:hover { border-color: var(--accent); }
+  .suggestion-item.selected { border-color: var(--accent); background: rgba(99,102,241,0.08); }
+  .suggestion-check { position: absolute; top: 14px; right: 14px; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .suggestion-item.selected .suggestion-check { background: var(--accent); border-color: var(--accent); }
+  .suggestion-check svg { display: none; }
+  .suggestion-item.selected .suggestion-check svg { display: block; }
+  .suggestion-section { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin-bottom: 6px; }
+  .suggestion-text { font-size: 0.88rem; line-height: 1.55; color: var(--text); margin-bottom: 8px; padding-right: 32px; }
+  .suggestion-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .suggestion-reason { font-size: 0.78rem; color: var(--muted); flex: 1; }
+  .pts-badge { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.2); padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+  .role-badge { background: rgba(139,92,246,0.12); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.25); padding: 2px 9px; border-radius: 10px; font-size: 0.72rem; font-weight: 500; white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+  .role-group-header { display: flex; align-items: center; gap: 10px; margin: 20px 0 10px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .role-group-label { font-size: 0.8rem; font-weight: 700; color: var(--text); }
+  .role-group-sub { font-size: 0.75rem; color: var(--muted); }
+
+  /* ── Tips ── */
+  .tip-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .tip-item:last-child { border-bottom: none; }
+  .tip-icon { color: var(--yellow); font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+  .tip-text { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+
+  /* ── After apply ── */
+  .result-banner { border-radius: 10px; padding: 20px 24px; margin-bottom: 20px; display: flex; align-items: center; gap: 16px; }
+  .result-banner.up { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); }
+  .result-banner .big { font-size: 2rem; font-weight: 800; }
+  .result-banner .label { font-size: 0.85rem; color: var(--muted); }
+  .improvement { color: var(--green); font-size: 1rem; font-weight: 700; }
+
+  /* ── Loading ── */
+  .loading { display: flex; align-items: center; gap: 12px; padding: 20px; color: var(--muted); }
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Sections show/hide ── */
+  .hidden { display: none !important; }
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .count-badge { background: var(--surface2); border: 1px solid var(--border); padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; color: var(--muted); }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 4px; background: var(--surface2); border-radius: 10px; padding: 4px; margin-bottom: 20px; }
+  .tab { flex: 1; text-align: center; padding: 8px; border-radius: 7px; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: var(--muted); transition: all 0.15s; }
+  .tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+
+  .select-all-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .select-all-row label { font-size: 0.82rem; color: var(--muted); cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <!-- API Key bar — hidden when server has key configured -->
+  <div id="api-key-bar" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:24px;display:none;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span style="font-size:0.82rem;color:var(--muted);white-space:nowrap">🔑 Anthropic API Key</span>
+    <input type="password" id="api-key-input" placeholder="sk-ant-api03-..." style="flex:1;min-width:200px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 12px;font-size:0.85rem;font-family:monospace;" oninput="saveKey(this.value)">
+    <span id="key-status" style="font-size:0.78rem;color:var(--muted)">Not set</span>
+    <span style="font-size:0.75rem;color:var(--muted)">Get yours at <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent)">console.anthropic.com</a></span>
+  </div>
+
+  <div class="header">
+    <h1>🎯 ATS Resume Scorer</h1>
+    <p>Claude-powered · mirrors real Workday, Greenhouse &amp; Lever scoring logic · works for any job role</p>
+  </div>
+
+  <!-- Step 1: Inputs -->
+  <div id="input-section">
+    <div class="grid-2">
+      <!-- JD -->
+      <div class="card">
+        <div class="card-title">📋 Job Description</div>
+        <textarea id="jd-text" placeholder="Paste the full job description here..."></textarea>
+        <div class="input-or">— or paste the job URL —</div>
+        <input type="url" id="jd-url" placeholder="https://jobs.company.com/ai-engineer-123">
+      </div>
+
+      <!-- Resume -->
+      <div class="card">
+        <div class="card-title">📄 Your Resume</div>
+        <div class="upload-zone" id="upload-zone">
+          <input type="file" id="resume-file" accept=".pdf,.docx">
+          <div class="upload-icon">📎</div>
+          <div class="upload-text">Drop your resume here or <span>browse</span></div>
+          <div class="upload-text" style="margin-top:6px;font-size:0.78rem">PDF or DOCX · Fonts &amp; styles preserved on output</div>
+          <div class="upload-file-name" id="file-name-display">✓ </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-center">
+      <button class="btn btn-primary" id="analyze-btn" onclick="analyze()" disabled>
+        <span>⚡</span> Analyze with Claude ATS
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading-section" class="hidden">
+    <div class="card" style="text-align:center;padding:40px">
+      <div class="loading" style="justify-content:center">
+        <div class="spinner"></div>
+        <span id="loading-msg">Analyzing your resume against the JD...</span>
+      </div>
+      <p style="color:var(--muted);font-size:0.82rem;margin-top:12px">Claude is scoring keyword coverage, experience relevance, and ATS compatibility</p>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="results-section" class="hidden">
+
+    <!-- Score Card -->
+    <div class="card" id="score-card">
+      <div class="card-title">ATS Score</div>
+      <div class="score-section">
+        <div class="score-gauge">
+          <svg viewBox="0 0 140 140" width="140" height="140">
+            <circle class="track" cx="70" cy="70" r="58"/>
+            <circle class="fill" id="gauge-fill" cx="70" cy="70" r="58"
+              stroke-dasharray="364.4" stroke-dashoffset="364.4" stroke="#6366f1"/>
+          </svg>
+          <div class="score-center">
+            <div class="score-num" id="score-num">0</div>
+            <div class="score-pct">/ 100</div>
+          </div>
+        </div>
+        <div class="score-meta">
+          <div class="score-grade" id="score-grade">—</div>
+          <div class="score-summary" id="score-summary"></div>
+          <div class="breakdown-grid" id="breakdown-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('keywords')">Keywords</div>
+      <div class="tab" onclick="switchTab('suggestions')">Suggestions</div>
+      <div class="tab" onclick="switchTab('tips')">ATS Tips</div>
+    </div>
+
+    <!-- Keywords tab -->
+    <div id="tab-keywords">
+      <div class="grid-2">
+        <div class="card">
+          <div class="section-header">
+            <div class="card-title" style="margin:0">✅ Matched</div>
+            <span class="count-badge" id="matched-count">0</span>
+          </div>
+          <div class="kw-grid" id="matched-list"></div>
+        </div>
+        <div class="card">
+          <div class="section-header">
+            <div class="card-title" style="margin:0">❌ Missing</div>
+            <span class="count-badge" id="missing-count">0</span>
+          </div>
+          <div class="kw-grid" id="missing-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Suggestions tab -->
+    <div id="tab-suggestions" class="hidden">
+      <div class="card">
+        <div class="section-header">
+          <div class="card-title" style="margin:0">💡 Suggested Additions</div>
+          <span class="count-badge" id="sugg-count">0 suggestions</span>
+        </div>
+        <div class="select-all-row">
+          <input type="checkbox" id="select-all" onchange="toggleAll(this.checked)">
+          <label for="select-all">Select all suggestions</label>
+          <span id="selected-count" style="margin-left:auto;font-size:0.82rem;color:var(--accent)">0 selected</span>
+        </div>
+        <div id="suggestions-list"></div>
+        <div class="btn-center" style="margin-top:16px">
+          <button class="btn btn-primary" id="apply-btn" onclick="applySelected()" disabled>
+            Apply Selected &amp; Re-Score
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tips tab -->
+    <div id="tab-tips" class="hidden">
+      <div class="card">
+        <div class="card-title">🔧 ATS Formatting Tips</div>
+        <div id="tips-list"></div>
+      </div>
+    </div>
+
+    <!-- After apply result -->
+    <div id="apply-result" class="hidden">
+      <div class="result-banner up">
+        <div>
+          <div class="label">New ATS Score</div>
+          <div class="big" id="new-score">—</div>
+        </div>
+        <div>
+          <div class="label">Improvement</div>
+          <div class="improvement" id="improvement-val">—</div>
+        </div>
+        <div style="flex:1">
+          <div class="label">Status</div>
+          <div id="new-grade" style="font-weight:700"></div>
+          <div id="new-summary" style="font-size:0.82rem;color:var(--muted);margin-top:4px"></div>
+        </div>
+        <button class="btn btn-green" id="download-btn" onclick="downloadResume()">
+          ⬇ Download Tailored Resume
+        </button>
+      </div>
+    </div>
+
+    <!-- Restart -->
+    <div style="text-align:center;margin-top:8px">
+      <button class="btn btn-outline" onclick="restart()">← Score Another Job</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let sessionId = null;
+let outputFile = null;
+let currentSuggestions = [];
+let selectedIds = new Set();
+
+// ── API Key (localStorage) ────────────────────────────────────────────────────
+function saveKey(val) {
+  localStorage.setItem('ats_api_key', val);
+  document.getElementById('key-status').textContent = val.startsWith('sk-ant') ? '✓ Set' : 'Check key format';
+  document.getElementById('key-status').style.color = val.startsWith('sk-ant') ? '#10b981' : '#f59e0b';
+}
+function getKey() { return document.getElementById('api-key-input').value.trim(); }
+
+// On load: check if server has key; if not, show key bar and restore saved key
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch('/api/config');
+    const cfg = await res.json();
+    if (!cfg.server_has_key) {
+      const bar = document.getElementById('api-key-bar');
+      bar.style.display = 'flex';
+      const saved = localStorage.getItem('ats_api_key') || '';
+      if (saved) {
+        document.getElementById('api-key-input').value = saved;
+        saveKey(saved);
+      }
+    }
+  } catch(e) {
+    // If config call fails, show key bar as fallback
+    document.getElementById('api-key-bar').style.display = 'flex';
+  }
+});
+
+// ── File upload ──────────────────────────────────────────────────────────────
+const fileInput = document.getElementById('resume-file');
+const uploadZone = document.getElementById('upload-zone');
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) {
+    const name = fileInput.files[0].name;
+    document.getElementById('file-name-display').textContent = '✓ ' + name;
+    document.getElementById('file-name-display').style.display = 'block';
+    checkReady();
+  }
+});
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f) { fileInput.files = e.dataTransfer.files; fileInput.dispatchEvent(new Event('change')); }
+});
+
+document.getElementById('jd-text').addEventListener('input', checkReady);
+document.getElementById('jd-url').addEventListener('input', checkReady);
+
+function checkReady() {
+  const hasFile = fileInput.files && fileInput.files[0];
+  const hasJD = document.getElementById('jd-text').value.trim() ||
+                document.getElementById('jd-url').value.trim();
+  document.getElementById('analyze-btn').disabled = !(hasFile && hasJD);
+}
+
+// ── Analyze ──────────────────────────────────────────────────────────────────
+async function analyze() {
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  show('loading-section'); hide('input-section'); hide('results-section');
+  setMsg('Sending to Claude ATS engine...');
+
+  const fd = new FormData();
+  fd.append('resume', file);
+  fd.append('jd_text', document.getElementById('jd-text').value.trim());
+  fd.append('jd_url',  document.getElementById('jd-url').value.trim());
+  fd.append('api_key', getKey());
+
+  setMsg('Claude is analyzing keyword coverage, skills alignment, experience relevance...');
+
+  try {
+    const res = await fetch('/api/analyze', { method: 'POST', body: fd });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Analysis failed'); }
+    const data = await res.json();
+    sessionId = data.session_id;
+    currentSuggestions = data.suggestions || [];
+    selectedIds.clear();
+    renderResults(data);
+    hide('loading-section'); show('results-section');
+  } catch(e) {
+    hide('loading-section'); show('input-section');
+    alert('Error: ' + e.message);
+  }
+}
+
+function setMsg(m) { document.getElementById('loading-msg').textContent = m; }
+
+// ── Render results ───────────────────────────────────────────────────────────
+function renderResults(data) {
+  // Score gauge
+  const score = data.score || 0;
+  const circ = 2 * Math.PI * 58;
+  const fill = circ - (score / 100) * circ;
+  const gaugeEl = document.getElementById('gauge-fill');
+  gaugeEl.style.strokeDashoffset = circ;
+  gaugeEl.style.stroke = scoreColor(score);
+  setTimeout(() => { gaugeEl.style.strokeDashoffset = fill; }, 100);
+
+  document.getElementById('score-num').textContent = score;
+  document.getElementById('score-num').style.color = scoreColor(score);
+  document.getElementById('score-grade').textContent = data.grade || '';
+  document.getElementById('score-grade').style.color = scoreColor(score);
+  document.getElementById('score-summary').textContent = data.summary || '';
+
+  // Breakdown
+  const bd = data.breakdown || {};
+  const bdItems = [
+    { label: 'Keyword Coverage', val: bd.keyword_coverage, max: 30 },
+    { label: 'Technical Skills', val: bd.technical_skills, max: 25 },
+    { label: 'Experience Relevance', val: bd.experience_relevance, max: 20 },
+    { label: 'Quantified Impact', val: bd.quantified_impact, max: 15 },
+    { label: 'ATS Formatting', val: bd.ats_formatting, max: 10 },
+  ];
+  document.getElementById('breakdown-grid').innerHTML = bdItems.map(b => {
+    const pct = b.max ? Math.round((b.val || 0) / b.max * 100) : 0;
+    const col = pct >= 70 ? 'var(--green)' : pct >= 40 ? 'var(--yellow)' : 'var(--red)';
+    return `<div class="breakdown-item">
+      <div class="breakdown-label">${b.label}</div>
+      <div class="breakdown-bar"><div class="breakdown-fill" style="width:${pct}%;background:${col}"></div></div>
+      <div class="breakdown-val" style="color:${col}">${b.val || 0} / ${b.max}</div>
+    </div>`;
+  }).join('');
+
+  // Matched keywords
+  const matched = data.matched_keywords || [];
+  document.getElementById('matched-count').textContent = matched.length;
+  document.getElementById('matched-list').innerHTML =
+    matched.map(k => `<span class="kw-pill kw-matched">${k}</span>`).join('') ||
+    '<span style="color:var(--muted);font-size:0.85rem">No matches found</span>';
+
+  // Missing keywords
+  const missing = data.missing_keywords || [];
+  document.getElementById('missing-count').textContent = missing.length;
+  document.getElementById('missing-list').innerHTML =
+    missing.map(m => {
+      const cls = m.importance === 'Required' ? 'kw-required' : 'kw-preferred';
+      const label = m.importance === 'Required' ? '🔴 ' : '🟡 ';
+      return `<span class="kw-pill ${cls}" title="${m.importance} · ${m.pts_impact} pts">${label}${m.keyword}</span>`;
+    }).join('') ||
+    '<span style="color:var(--green);font-size:0.85rem">All keywords matched! 🎉</span>';
+
+  // Suggestions
+  document.getElementById('sugg-count').textContent = currentSuggestions.length + ' suggestions';
+  renderSuggestions();
+
+  // Tips
+  const tips = data.ats_tips || [];
+  document.getElementById('tips-list').innerHTML =
+    tips.map(t => `<div class="tip-item"><div class="tip-icon">💡</div><div class="tip-text">${t}</div></div>`).join('') ||
+    '<div style="color:var(--muted);font-size:0.85rem">No additional tips.</div>';
+
+  hide('apply-result');
+}
+
+function renderSuggestions() {
+  const list = document.getElementById('suggestions-list');
+  if (!currentSuggestions.length) {
+    list.innerHTML = '<div style="color:var(--muted);padding:20px;text-align:center">No suggestions — your resume covers the JD well!</div>';
+    return;
+  }
+
+  // Separate by section type
+  const skills  = currentSuggestions.filter(s => s.section === 'Technical Skills' || s.action === 'add_to_skills');
+  const summary = currentSuggestions.filter(s => s.section === 'Summary' || s.action === 'update_summary');
+  const expAll  = currentSuggestions.filter(s => s.section === 'Experience' && s.action === 'add_bullet');
+
+  // Clean target_role: strip angle brackets and long explanatory text Claude sometimes adds.
+  // e.g. "<Add under your most recent Senior Java Backend role>" → "Most Recent Role"
+  // e.g. "ASPYRANT LLC" → "ASPYRANT LLC"
+  function cleanRole(raw) {
+    if (!raw) return '';
+    // Strip angle bracket wrappers
+    const unwrapped = raw.replace(/^<+|>+$/g, '').trim();
+    // If short enough after stripping, use it directly
+    if (unwrapped.length <= 50) return unwrapped;
+    // Long explanatory text — try to extract a company/role name
+    const m = unwrapped.match(/(?:under|at|for)\s+(?:your\s+)?(?:most recent\s+)?([A-Z][^\s,]+(?:\s+[A-Z][^\s,]+)?)/);
+    if (m) return m[1].trim();
+    return 'Most Recent Role';
+  }
+
+  // Group experience by target_role
+  const roleMap = new Map();
+  expAll.forEach(s => {
+    const role = cleanRole(s.target_role) || 'Experience';
+    if (!roleMap.has(role)) roleMap.set(role, []);
+    roleMap.get(role).push(s);
+  });
+
+  function cardHTML(s) {
+    const sel = selectedIds.has(s.id) ? 'selected' : '';
+    const kws = (s.keywords_targeted || []).map(k =>
+      `<span class="kw-pill kw-matched" style="font-size:0.72rem">${k}</span>`).join(' ');
+    const displayRole = cleanRole(s.target_role);
+    const roleTag = displayRole
+      ? `<span class="role-badge" title="${s.target_role}">📍 ${displayRole}</span>` : '';
+    return `<div class="suggestion-item ${sel}" onclick="toggleSugg('${s.id}', this)" data-id="${s.id}">
+      <div class="suggestion-check">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="suggestion-section" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${s.section}${roleTag}
+      </div>
+      <div class="suggestion-text">${s.text}</div>
+      <div class="suggestion-meta">
+        <div class="suggestion-reason">${s.reason}</div>
+        ${s.pts_gain ? `<div class="pts-badge">+${s.pts_gain} pts</div>` : ''}
+      </div>
+      ${kws ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">${kws}</div>` : ''}
+    </div>`;
+  }
+
+  let html = '';
+
+  if (skills.length) {
+    html += `<div class="role-group-header">
+      <span class="role-group-label">🛠 Technical Skills</span>
+      <span class="role-group-sub">${skills.length} suggestion${skills.length > 1 ? 's' : ''}</span>
+    </div>`;
+    html += skills.map(cardHTML).join('');
+  }
+
+  if (summary.length) {
+    html += `<div class="role-group-header">
+      <span class="role-group-label">📝 Summary</span>
+      <span class="role-group-sub">${summary.length} suggestion${summary.length > 1 ? 's' : ''}</span>
+    </div>`;
+    html += summary.map(cardHTML).join('');
+  }
+
+  if (roleMap.size) {
+    roleMap.forEach((suggs, role) => {
+      html += `<div class="role-group-header">
+        <span class="role-group-label">💼 ${role}</span>
+        <span class="role-group-sub">${suggs.length} bullet${suggs.length > 1 ? 's' : ''} to add</span>
+      </div>`;
+      html += suggs.map(cardHTML).join('');
+    });
+  }
+
+  list.innerHTML = html;
+  updateSelectionUI();
+}
+
+function toggleSugg(id, el) {
+  if (selectedIds.has(id)) { selectedIds.delete(id); el.classList.remove('selected'); }
+  else { selectedIds.add(id); el.classList.add('selected'); }
+  updateSelectionUI();
+}
+
+function toggleAll(checked) {
+  currentSuggestions.forEach(s => {
+    if (checked) selectedIds.add(s.id); else selectedIds.delete(s.id);
+  });
+  renderSuggestions();
+  document.getElementById('select-all').checked = checked;
+}
+
+function updateSelectionUI() {
+  const n = selectedIds.size;
+  document.getElementById('selected-count').textContent = n + ' selected';
+  document.getElementById('apply-btn').disabled = n === 0;
+}
+
+// ── Apply ─────────────────────────────────────────────────────────────────────
+async function applySelected() {
+  if (!selectedIds.size) return;
+  const btn = document.getElementById('apply-btn');
+  btn.disabled = true; btn.textContent = 'Applying & Re-scoring...';
+
+  try {
+    const res = await fetch('/api/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, selected_ids: [...selectedIds] })
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
+    const data = await res.json();
+
+    outputFile = data.output_file;
+
+    // Update score gauge
+    const score = data.score;
+    const circ = 2 * Math.PI * 58;
+    const fill = circ - (score / 100) * circ;
+    const gaugeEl = document.getElementById('gauge-fill');
+    gaugeEl.style.stroke = scoreColor(score);
+    setTimeout(() => { gaugeEl.style.strokeDashoffset = fill; }, 50);
+    document.getElementById('score-num').textContent = score;
+    document.getElementById('score-num').style.color = scoreColor(score);
+    document.getElementById('score-grade').textContent = data.grade;
+    document.getElementById('score-grade').style.color = scoreColor(score);
+    document.getElementById('score-summary').textContent = data.summary || '';
+
+    // Show result banner
+    document.getElementById('new-score').textContent = score + '/100';
+    document.getElementById('improvement-val').textContent =
+      (data.improvement >= 0 ? '+' : '') + data.improvement + ' pts';
+    document.getElementById('new-grade').textContent = data.grade;
+    document.getElementById('new-summary').textContent = data.summary || '';
+    show('apply-result');
+
+    // Update missing keywords
+    const missing = data.missing_keywords || [];
+    document.getElementById('missing-count').textContent = missing.length;
+    document.getElementById('missing-list').innerHTML =
+      missing.map(m => {
+        const k = typeof m === 'string' ? m : m.keyword;
+        const imp = typeof m === 'object' ? m.importance : 'Preferred';
+        const cls = imp === 'Required' ? 'kw-required' : 'kw-preferred';
+        return `<span class="kw-pill ${cls}">${k}</span>`;
+      }).join('') || '<span style="color:var(--green)">All matched! 🎉</span>';
+
+    // Update matched keywords
+    const matched = data.matched_keywords || [];
+    document.getElementById('matched-count').textContent = matched.length;
+    document.getElementById('matched-list').innerHTML =
+      matched.map(k => `<span class="kw-pill kw-matched">${k}</span>`).join('');
+
+  } catch(e) {
+    alert('Error applying suggestions: ' + e.message);
+  }
+
+  btn.disabled = false; btn.textContent = 'Apply Selected & Re-Score';
+}
+
+// ── Download ─────────────────────────────────────────────────────────────────
+function downloadResume() {
+  if (!outputFile) return;
+  window.location.href = '/api/download/' + outputFile;
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  ['keywords','suggestions','tips'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('hidden', t !== name);
+  });
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle('active', ['keywords','suggestions','tips'][i] === name);
+  });
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function scoreColor(s) {
+  if (s >= 85) return '#10b981';
+  if (s >= 70) return '#6366f1';
+  if (s >= 55) return '#f59e0b';
+  return '#ef4444';
+}
+
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+
+function restart() {
+  sessionId = null; outputFile = null; currentSuggestions = []; selectedIds.clear();
+  fileInput.value = '';
+  document.getElementById('file-name-display').style.display = 'none';
+  document.getElementById('jd-text').value = '';
+  document.getElementById('jd-url').value = '';
+  document.getElementById('analyze-btn').disabled = true;
+  hide('results-section'); hide('loading-section'); show('input-section');
+  switchTab('keywords');
+}
+</script>
+</body>
+</html>

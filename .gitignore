@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+uploads/
+outputs/
+*.docx
+*.pdf
+test_*.py
+check_*.py
+server.log
+server_out.txt
+server_err.txt
+.claude/
